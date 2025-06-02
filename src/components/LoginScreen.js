@@ -158,6 +158,7 @@ const handleLogin = async () => {
             onChange={(e) => setLoginData({ ...loginData, username: e.target.value })}
             className="form-input"
             autoComplete="username"
+            maxLength={50}
           />
         </div>
 
@@ -168,7 +169,7 @@ const handleLogin = async () => {
               placeholder="Password"
               value={loginData.password}
               onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-              className="form-input"
+              className="form-input password-field"
               autoComplete="current-password"
             />
             <button
@@ -227,6 +228,7 @@ const handleLogin = async () => {
             onChange={(e) => setSignupData({ ...signupData, username: e.target.value })}
             className="form-input"
             autoComplete="username"
+            maxLength={50}
           />
         </div>
 
@@ -238,6 +240,7 @@ const handleLogin = async () => {
             onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
             className="form-input"
             autoComplete="email"
+            maxLength={100}
           />
         </div>
 
@@ -248,7 +251,7 @@ const handleLogin = async () => {
               placeholder="Password (min 8 characters)"
               value={signupData.password}
               onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
-              className="form-input"
+              className="form-input password-field"
               autoComplete="new-password"
             />
             <button
@@ -268,7 +271,7 @@ const handleLogin = async () => {
               placeholder="Confirm Password"
               value={signupData.confirmPassword}
               onChange={(e) => setSignupData({ ...signupData, confirmPassword: e.target.value })}
-              className="form-input"
+              className="form-input password-field"
               autoComplete="new-password"
             />
             <button
@@ -324,6 +327,7 @@ const handleLogin = async () => {
             onChange={(e) => setForgotEmail(e.target.value)}
             className="form-input"
             autoComplete="email"
+            maxLength={100}
           />
         </div>
 
@@ -692,10 +696,13 @@ const handleLogin = async () => {
 
         .input-group {
           position: relative;
+          width: 100%;
         }
 
         .form-input {
           width: 100%;
+          max-width: 100%;
+          min-width: 0;
           padding: 16px 20px;
           background: rgba(255, 255, 255, 0.1);
           border: 1px solid rgba(255, 255, 255, 0.2);
@@ -704,6 +711,10 @@ const handleLogin = async () => {
           font-size: 1rem;
           transition: all 0.3s ease;
           backdrop-filter: blur(10px);
+          box-sizing: border-box;
+          text-overflow: ellipsis;
+          overflow: hidden;
+          white-space: nowrap;
         }
 
         .form-input::placeholder {
@@ -721,6 +732,11 @@ const handleLogin = async () => {
           position: relative;
           display: flex;
           align-items: center;
+          width: 100%;
+        }
+
+        .password-field {
+          padding-right: 50px;
         }
 
         .password-toggle {
@@ -732,6 +748,7 @@ const handleLogin = async () => {
           cursor: pointer;
           padding: 4px;
           transition: all 0.2s ease;
+          z-index: 2;
         }
 
         .password-toggle:hover {
@@ -799,6 +816,8 @@ const handleLogin = async () => {
           font-size: 0.9rem;
           text-align: center;
           backdrop-filter: blur(10px);
+          word-wrap: break-word;
+          overflow-wrap: break-word;
         }
 
         /* Mobile optimizations */
@@ -816,6 +835,7 @@ const handleLogin = async () => {
 
           .form-container {
             padding: 2rem;
+            max-width: 90vw;
           }
 
           .form-title {
@@ -831,15 +851,54 @@ const handleLogin = async () => {
             width: 28px;
             height: 28px;
           }
+
+          .form-input {
+            font-size: 16px; /* Prevents zoom on iOS */
+            padding: 14px 18px;
+          }
+
+          .password-field {
+            padding-right: 45px;
+          }
+
+          .password-toggle {
+            right: 14px;
+          }
         }
 
         @media (max-width: 480px) {
           .form-container {
             padding: 1.5rem;
+            max-width: 95vw;
           }
 
           .form-title {
             font-size: 1.6rem;
+          }
+
+          .form-input {
+            padding: 12px 16px;
+          }
+
+          .password-field {
+            padding-right: 40px;
+          }
+
+          .password-toggle {
+            right: 12px;
+          }
+        }
+
+        /* Ensure input fields never overflow */
+        @media (max-width: 360px) {
+          .form-container {
+            padding: 1rem;
+            max-width: 98vw;
+          }
+
+          .form-input {
+            font-size: 14px;
+            padding: 10px 14px;
           }
         }
       `}</style>

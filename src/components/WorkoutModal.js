@@ -249,6 +249,7 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
               onChange={(e) => setWorkoutName(e.target.value)}
               className="workout-name-input"
               autoFocus
+              maxLength={100}
             />
           </div>
 
@@ -531,6 +532,8 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
 
           .workout-name-input {
             width: 100%;
+            max-width: 100%;
+            min-width: 0;
             padding: 16px;
             font-size: 1.1rem;
             font-weight: 600;
@@ -539,6 +542,10 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
             background: rgba(0, 0, 0, 0.02);
             transition: all 0.2s ease;
             color: #333;
+            box-sizing: border-box;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
           }
 
           .workout-name-input:focus {
@@ -701,6 +708,8 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
             display: flex;
             gap: 8px;
             flex: 1;
+            width: 100%;
+            min-width: 0;
           }
 
           .input-group {
@@ -720,6 +729,8 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
 
           .set-input {
             width: 100%;
+            max-width: 100%;
+            min-width: 0;
             padding: 10px 8px;
             border: 1px solid rgba(0, 0, 0, 0.15);
             border-radius: 8px;
@@ -729,6 +740,7 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
             background: white;
             transition: all 0.2s ease;
             color: #333;
+            box-sizing: border-box;
           }
 
           .set-input:focus {
@@ -893,6 +905,10 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
               padding: 0.5rem;
             }
 
+            .modal-content {
+              max-width: 95vw;
+            }
+
             .modal-header {
               padding: 1rem 1.5rem;
             }
@@ -903,6 +919,11 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
 
             .modal-footer {
               padding: 1rem 1.5rem;
+            }
+
+            .workout-name-input {
+              font-size: 16px; /* Prevents zoom on iOS */
+              padding: 14px;
             }
 
             .set-inputs {
@@ -916,6 +937,45 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
 
             .input-group label {
               font-size: 0.7rem;
+            }
+          }
+
+          /* Very small screens */
+          @media (max-width: 480px) {
+            .modal-content {
+              max-width: 98vw;
+            }
+
+            .set-row {
+              flex-wrap: wrap;
+              gap: 8px;
+            }
+
+            .set-inputs {
+              width: 100%;
+              order: 2;
+            }
+
+            .set-controls {
+              order: 3;
+              min-width: auto;
+            }
+
+            .remove-set-button {
+              order: 4;
+            }
+          }
+
+          /* Ensure inputs never overflow */
+          @media (max-width: 360px) {
+            .workout-name-input {
+              font-size: 14px;
+              padding: 12px;
+            }
+
+            .set-input {
+              font-size: 0.8rem;
+              padding: 6px 4px;
             }
           }
         `}</style>
