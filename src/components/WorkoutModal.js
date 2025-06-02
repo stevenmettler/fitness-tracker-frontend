@@ -1,12 +1,18 @@
-import React, { useState } from 'react';
-import { X, Plus, Trash2, Save, Dumbbell } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Plus, Trash2, Save, Dumbbell, Clock, Play, Pause } from 'lucide-react';
 
 const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
   const [workoutName, setWorkoutName] = useState('');
   const [sets, setSets] = useState([
-    { reps: '', weight: '', intensity: 'medium' }
+    { reps: '', weight: '', intensity: 'medium', isActive: false, startTime: null, endTime: null, duration: 0 }
   ]);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Real timing states
+  const [workoutStarted, setWorkoutStarted] = useState(false);
+  const [workoutStartTime, setWorkoutStartTime] = useState(null);
+  const [currentSetIndex, setCurrentSetIndex] = useState(null);
+  const [workoutDuration, setWorkoutDuration] = useState(0);
 
   const themes = {
     energy: 'linear-gradient(135deg, #ff6b35 0%, #f7931e 30%, #ff4757 70%, #ff3838 100%)',
@@ -16,12 +22,101 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
     sunset: 'linear-gradient(135deg, #fa709a 0%, #fee140 30%, #ffa726 70%, #ff7043 100%)'
   };
 
+  // Timer for workout duration
+  useEffect(() => {
+    let timer;
+    if (workoutStarted && workoutStartTime) {
+      timer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - new Date(workoutStartTime).getTime()) / 1000);
+        setWorkoutDuration(elapsed);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [workoutStarted, workoutStartTime]);
+
+  // Timer for current set
+  useEffect(() => {
+    let timer;
+    if (currentSetIndex !== null && sets[currentSetIndex]?.isActive) {
+      timer = setInterval(() => {
+        const startTime = sets[currentSetIndex].startTime;
+        if (startTime) {
+          const elapsed = Math.floor((Date.now() - new Date(startTime).getTime()) / 1000);
+          setSets(prev => prev.map((set, index) => 
+            index === currentSetIndex ? { ...set, duration: elapsed } : set
+          ));
+        }
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [currentSetIndex, sets]);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const startWorkout = () => {
+    const now = new Date().toISOString();
+    setWorkoutStartTime(now);
+    setWorkoutStarted(true);
+    console.log('🏁 Workout started at:', now);
+  };
+
+  const startSet = (setIndex) => {
+    if (!workoutStarted) {
+      alert('Please start the workout first!');
+      return;
+    }
+
+    // End any currently active set
+    if (currentSetIndex !== null) {
+      endSet(currentSetIndex);
+    }
+
+    const now = new Date().toISOString();
+    setSets(prev => prev.map((set, index) => 
+      index === setIndex 
+        ? { ...set, isActive: true, startTime: now, duration: 0 }
+        : { ...set, isActive: false }
+    ));
+    setCurrentSetIndex(setIndex);
+    console.log(`⏱️ Set ${setIndex + 1} started at:`, now);
+  };
+
+  const endSet = (setIndex) => {
+    const now = new Date().toISOString();
+    setSets(prev => prev.map((set, index) => 
+      index === setIndex 
+        ? { ...set, isActive: false, endTime: now }
+        : set
+    ));
+    
+    if (currentSetIndex === setIndex) {
+      setCurrentSetIndex(null);
+    }
+    
+    console.log(`✅ Set ${setIndex + 1} ended at:`, now);
+  };
+
   const addSet = () => {
-    setSets([...sets, { reps: '', weight: '', intensity: 'medium' }]);
+    setSets([...sets, { 
+      reps: '', 
+      weight: '', 
+      intensity: 'medium', 
+      isActive: false, 
+      startTime: null, 
+      endTime: null, 
+      duration: 0 
+    }]);
   };
 
   const removeSet = (index) => {
     if (sets.length > 1) {
+      if (currentSetIndex === index) {
+        setCurrentSetIndex(null);
+      }
       setSets(sets.filter((_, i) => i !== index));
     }
   };
@@ -38,27 +133,61 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
       return;
     }
 
+    if (!workoutStarted) {
+      alert('Please start the workout timer first!');
+      return;
+    }
+
     if (sets.some(set => !set.reps)) {
       alert('Please fill in reps for all sets');
       return;
     }
 
+    // Check if any sets are still active
+    const hasActiveSets = sets.some(set => set.isActive);
+    if (hasActiveSets) {
+      const confirmed = window.confirm('You have active sets. End them and finish workout?');
+      if (!confirmed) return;
+      
+      // End all active sets
+      setSets(prev => prev.map(set => ({
+        ...set,
+        isActive: false,
+        endTime: set.isActive && !set.endTime ? new Date().toISOString() : set.endTime
+      })));
+    }
+
     setIsSaving(true);
 
+    const workoutEndTime = new Date().toISOString();
+    
     const workout = {
       name: workoutName.trim(),
-      started_at: new Date().toISOString(),
-      finished_at: new Date().toISOString(),
-      sets: sets.map(set => ({
-        started_at: new Date().toISOString(),
-        finished_at: new Date().toISOString(),
-        reps: {
-          count: parseInt(set.reps),
-          weight: set.weight ? parseInt(set.weight) : null,
-          intensity: set.intensity
-        }
-      }))
+      started_at: workoutStartTime, // Real start time
+      finished_at: workoutEndTime,  // Real end time
+      sets: sets.map(set => {
+        // Ensure every set has start and end times
+        const setStartTime = set.startTime || workoutStartTime;
+        const setEndTime = set.endTime || workoutEndTime;
+        
+        return {
+          started_at: setStartTime,
+          finished_at: setEndTime,
+          reps: {
+            count: parseInt(set.reps),
+            weight: set.weight ? parseInt(set.weight) : null,
+            intensity: set.intensity
+          }
+        };
+      })
     };
+
+    console.log('💾 Saving workout with real timing:', {
+      name: workout.name,
+      duration: Math.floor((new Date(workoutEndTime) - new Date(workoutStartTime)) / 1000 / 60),
+      sets: workout.sets.length,
+      realTiming: true
+    });
 
     // Simulate API call
     setTimeout(() => {
@@ -69,8 +198,19 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
   };
 
   const handleClose = () => {
+    // Confirm if workout is in progress
+    if (workoutStarted) {
+      const confirmed = window.confirm('Are you sure you want to close? Your workout progress will be lost.');
+      if (!confirmed) return;
+    }
+    
+    // Reset all states
     setWorkoutName('');
-    setSets([{ reps: '', weight: '', intensity: 'medium' }]);
+    setSets([{ reps: '', weight: '', intensity: 'medium', isActive: false, startTime: null, endTime: null, duration: 0 }]);
+    setWorkoutStarted(false);
+    setWorkoutStartTime(null);
+    setCurrentSetIndex(null);
+    setWorkoutDuration(0);
     onClose();
   };
 
@@ -84,7 +224,15 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
             <div className="workout-icon">
               <Dumbbell className="dumbbell-icon" />
             </div>
-            <h2>Add Workout</h2>
+            <div>
+              <h2>Add Workout</h2>
+              {workoutStarted && (
+                <div className="workout-timer">
+                  <Clock className="timer-icon" />
+                  <span>{formatTime(workoutDuration)}</span>
+                </div>
+              )}
+            </div>
           </div>
           <button className="close-button" onClick={handleClose}>
             <X className="close-icon" />
@@ -104,6 +252,24 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
             />
           </div>
 
+          {/* Start Workout Button */}
+          {!workoutStarted ? (
+            <div className="start-workout-section">
+              <button className="start-workout-button" onClick={startWorkout}>
+                <Play className="play-icon" />
+                Start Workout Timer
+              </button>
+              <p className="timer-hint">Start the timer when you begin this exercise</p>
+            </div>
+          ) : (
+            <div className="workout-status">
+              <div className="status-indicator active">
+                <Clock className="status-icon" />
+                <span>Workout in progress: {formatTime(workoutDuration)}</span>
+              </div>
+            </div>
+          )}
+
           {/* Sets */}
           <div className="sets-section">
             <div className="sets-header">
@@ -116,7 +282,7 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
 
             <div className="sets-list">
               {sets.map((set, index) => (
-                <div key={index} className="set-row">
+                <div key={index} className={`set-row ${set.isActive ? 'active' : ''} ${set.endTime ? 'completed' : ''}`}>
                   <div className="set-number">
                     {index + 1}
                   </div>
@@ -162,6 +328,38 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
                     </div>
                   </div>
 
+                  <div className="set-controls">
+                    {!set.isActive && !set.endTime && workoutStarted && (
+                      <button 
+                        className="set-timer-button start"
+                        onClick={() => startSet(index)}
+                        title="Start set timer"
+                      >
+                        <Play className="timer-icon-small" />
+                      </button>
+                    )}
+                    
+                    {set.isActive && (
+                      <div className="set-timer-active">
+                        <span className="set-duration">{formatTime(set.duration)}</span>
+                        <button 
+                          className="set-timer-button end"
+                          onClick={() => endSet(index)}
+                          title="End set"
+                        >
+                          <Pause className="timer-icon-small" />
+                        </button>
+                      </div>
+                    )}
+
+                    {set.endTime && (
+                      <div className="set-completed">
+                        <span className="completed-time">{formatTime(set.duration)}</span>
+                        <span className="completed-check">✓</span>
+                      </div>
+                    )}
+                  </div>
+
                   {sets.length > 1 && (
                     <button 
                       className="remove-set-button"
@@ -183,7 +381,7 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
           <button 
             className={`save-button ${isSaving ? 'saving' : ''}`}
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || !workoutStarted}
           >
             <Save className="save-icon" />
             {isSaving ? 'Saving...' : 'Save Workout'}
@@ -217,7 +415,7 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
             backdrop-filter: blur(20px);
             border-radius: 20px;
             width: 100%;
-            max-width: 500px;
+            max-width: 600px;
             max-height: 90vh;
             overflow: hidden;
             box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
@@ -284,6 +482,20 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
             color: #333;
           }
 
+          .workout-timer {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 4px;
+          }
+
+          .timer-icon {
+            width: 14px;
+            height: 14px;
+          }
+
           .close-button {
             width: 36px;
             height: 36px;
@@ -339,6 +551,66 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
           .workout-name-input::placeholder {
             color: #999;
             font-weight: 500;
+          }
+
+          .start-workout-section {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.03);
+            border-radius: 12px;
+          }
+
+          .start-workout-button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: ${themes[currentTheme]};
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin: 0 auto 8px;
+          }
+
+          .start-workout-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          }
+
+          .play-icon {
+            width: 18px;
+            height: 18px;
+          }
+
+          .timer-hint {
+            margin: 0;
+            font-size: 0.85rem;
+            color: #666;
+          }
+
+          .workout-status {
+            margin-bottom: 1.5rem;
+          }
+
+          .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: #e8f5e8;
+            border: 1px solid #4caf50;
+            border-radius: 8px;
+            color: #2e7d32;
+            font-weight: 600;
+          }
+
+          .status-icon {
+            width: 16px;
+            height: 16px;
           }
 
           .sets-section {
@@ -397,7 +669,18 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
             padding: 12px;
             background: rgba(0, 0, 0, 0.03);
             border-radius: 12px;
-            border: 1px solid rgba(0, 0, 0, 0.08);
+            border: 2px solid transparent;
+            transition: all 0.2s ease;
+          }
+
+          .set-row.active {
+            border-color: #4caf50;
+            background: rgba(76, 175, 80, 0.1);
+          }
+
+          .set-row.completed {
+            border-color: #2196f3;
+            background: rgba(33, 150, 243, 0.1);
           }
 
           .set-number {
@@ -454,22 +737,72 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
             box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
           }
 
-          .reps-input {
-            color: #e74c3c;
+          .set-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 80px;
+            justify-content: center;
           }
 
-          .weight-input {
-            color: #3498db;
-          }
-
-          .intensity-select {
-            color: #f39c12;
+          .set-timer-button {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: none;
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
           }
 
-          .set-input::placeholder {
-            color: #bbb;
-            font-weight: 500;
+          .set-timer-button.start {
+            background: #4caf50;
+            color: white;
+          }
+
+          .set-timer-button.end {
+            background: #ff9800;
+            color: white;
+          }
+
+          .set-timer-button:hover {
+            transform: scale(1.1);
+          }
+
+          .timer-icon-small {
+            width: 14px;
+            height: 14px;
+          }
+
+          .set-timer-active {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+
+          .set-duration {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #4caf50;
+          }
+
+          .set-completed {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+
+          .completed-time {
+            font-size: 0.85rem;
+            color: #2196f3;
+            font-weight: 600;
+          }
+
+          .completed-check {
+            color: #4caf50;
+            font-weight: 700;
           }
 
           .remove-set-button {
@@ -544,13 +877,9 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
           }
 
           .save-button:disabled {
-            opacity: 0.7;
+            opacity: 0.5;
             cursor: not-allowed;
             transform: none;
-          }
-
-          .save-button.saving {
-            background: rgba(0, 0, 0, 0.3);
           }
 
           .save-icon {
@@ -587,33 +916,6 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
 
             .input-group label {
               font-size: 0.7rem;
-            }
-          }
-
-          @media (max-width: 480px) {
-            .modal-content {
-              max-width: 100%;
-              margin: 0.5rem;
-            }
-
-            .set-row {
-              padding: 10px;
-              gap: 8px;
-            }
-
-            .set-number {
-              width: 28px;
-              height: 28px;
-              font-size: 0.8rem;
-            }
-
-            .modal-footer {
-              flex-direction: column;
-              gap: 8px;
-            }
-
-            .cancel-button, .save-button {
-              padding: 12px;
             }
           }
         `}</style>

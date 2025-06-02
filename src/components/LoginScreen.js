@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Palette, X, Eye, EyeOff, Zap, ArrowLeft } from 'lucide-react';
 
-const LoginScreen = ({ onLogin, currentTheme, onThemeChange }) => {
+const LoginScreen = ({ onLogin, onRegister, currentTheme, onThemeChange }) => {
   const [showThemeWheel, setShowThemeWheel] = useState(false);
   const [currentView, setCurrentView] = useState('login'); // 'login', 'signup', 'forgot'
   const [showPassword, setShowPassword] = useState(false);
@@ -47,20 +47,39 @@ const LoginScreen = ({ onLogin, currentTheme, onThemeChange }) => {
     setShowThemeWheel(false);
   };
 
-  const handleLogin = async () => {
-    setLoading(true);
-    setError('');
+const handleLogin = async () => {
+  setLoading(true);
+  setError('');
+  
+  if (!loginData.username || !loginData.password) {
+    setError('Please fill in all fields');
+    setLoading(false);
+    return;
+  }
+  
+  if (loginData.password.length < 8) {
+    setError('Password must be at least 8 characters');
+    setLoading(false);
+    return;
+  }
+  
+  try {
+    // Call the parent's login function with real data
+    const result = await onLogin({
+      username: loginData.username,
+      password: loginData.password
+    });
     
-    // Simulate API call
-    setTimeout(() => {
-      if (loginData.username && loginData.password) {
-        onLogin({ username: loginData.username });
-      } else {
-        setError('Please fill in all fields');
-      }
-      setLoading(false);
-    }, 1000);
-  };
+    if (!result.success) {
+      setError(result.error);
+    }
+  } catch (err) {
+    console.error('Login error:', err);
+    setError('An unexpected error occurred. Please try again.');
+  }
+  
+  setLoading(false);
+};
 
   const handleSignup = async () => {
     setLoading(true);
@@ -72,26 +91,44 @@ const LoginScreen = ({ onLogin, currentTheme, onThemeChange }) => {
       return;
     }
     
-    // Simulate API call
-    setTimeout(() => {
-      if (signupData.username && signupData.email && signupData.password) {
-        setCurrentView('login');
-        setError('Account created! Please log in.');
-      } else {
-        setError('Please fill in all fields');
-      }
+    if (!signupData.username || !signupData.email || !signupData.password) {
+      setError('Please fill in all fields');
       setLoading(false);
-    }, 1000);
+      return;
+    }
+    
+    if (signupData.password.length < 8) {
+      setError('Password must be at least 8 characters');
+      setLoading(false);
+      return;
+    }
+    
+    // Call the parent's register function
+    const result = await onRegister({
+      username: signupData.username,
+      email: signupData.email,
+      password: signupData.password
+    });
+    
+    if (result.success) {
+      setCurrentView('login');
+      setError('Account created successfully! Please log in.');
+      // Clear signup form
+      setSignupData({ username: '', email: '', password: '', confirmPassword: '' });
+    } else {
+      setError(result.error);
+    }
+    setLoading(false);
   };
 
   const handleForgotPassword = async () => {
     setLoading(true);
     setError('');
     
-    // Simulate API call
+    // Simulate API call (forgot password not implemented in backend yet)
     setTimeout(() => {
       if (forgotEmail) {
-        setError('Password reset email sent!');
+        setError('Password reset feature coming soon!');
         setTimeout(() => setCurrentView('login'), 2000);
       } else {
         setError('Please enter your email');
@@ -120,6 +157,7 @@ const LoginScreen = ({ onLogin, currentTheme, onThemeChange }) => {
             value={loginData.username}
             onChange={(e) => setLoginData({ ...loginData, username: e.target.value })}
             className="form-input"
+            autoComplete="username"
           />
         </div>
 
@@ -131,6 +169,7 @@ const LoginScreen = ({ onLogin, currentTheme, onThemeChange }) => {
               value={loginData.password}
               onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
               className="form-input"
+              autoComplete="current-password"
             />
             <button
               type="button"
@@ -187,6 +226,7 @@ const LoginScreen = ({ onLogin, currentTheme, onThemeChange }) => {
             value={signupData.username}
             onChange={(e) => setSignupData({ ...signupData, username: e.target.value })}
             className="form-input"
+            autoComplete="username"
           />
         </div>
 
@@ -197,6 +237,7 @@ const LoginScreen = ({ onLogin, currentTheme, onThemeChange }) => {
             value={signupData.email}
             onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
             className="form-input"
+            autoComplete="email"
           />
         </div>
 
@@ -204,10 +245,11 @@ const LoginScreen = ({ onLogin, currentTheme, onThemeChange }) => {
           <div className="password-input">
             <input
               type={showPassword ? 'text' : 'password'}
-              placeholder="Password"
+              placeholder="Password (min 8 characters)"
               value={signupData.password}
               onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
               className="form-input"
+              autoComplete="new-password"
             />
             <button
               type="button"
@@ -227,6 +269,7 @@ const LoginScreen = ({ onLogin, currentTheme, onThemeChange }) => {
               value={signupData.confirmPassword}
               onChange={(e) => setSignupData({ ...signupData, confirmPassword: e.target.value })}
               className="form-input"
+              autoComplete="new-password"
             />
             <button
               type="button"
@@ -269,7 +312,7 @@ const LoginScreen = ({ onLogin, currentTheme, onThemeChange }) => {
           </div>
         </div>
         <h1 className="form-title">Reset Password</h1>
-        <p className="form-subtitle">We'll send you a reset link</p>
+        <p className="form-subtitle">Feature coming soon!</p>
       </div>
 
       <div className="form-content">
@@ -280,6 +323,7 @@ const LoginScreen = ({ onLogin, currentTheme, onThemeChange }) => {
             value={forgotEmail}
             onChange={(e) => setForgotEmail(e.target.value)}
             className="form-input"
+            autoComplete="email"
           />
         </div>
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, Zap, Palette, X } from 'lucide-react';
+import { Plus, Zap, Palette, X, LogOut, User } from 'lucide-react';
 
-const NewSession = ({ onStartSession, currentTheme = 'energy', onThemeChange }) => {
+const NewSession = ({ onStartSession, currentTheme = 'energy', onThemeChange, onLogout, user }) => {
   const [isStarting, setIsStarting] = useState(false);
   const [showThemeWheel, setShowThemeWheel] = useState(false);
 
@@ -68,13 +68,28 @@ const NewSession = ({ onStartSession, currentTheme = 'energy', onThemeChange }) 
 
   return (
     <div className={`new-session-container theme-${currentTheme}`}>
-      <button 
-        className="theme-toggle" 
-        onClick={() => setShowThemeWheel(!showThemeWheel)}
-      >
-        <Palette className="palette-icon" />
-        <span>Themes</span>
-      </button>
+      {/* Header with theme toggle and logout */}
+      <div className="new-session-header">
+        <button 
+          className="theme-toggle" 
+          onClick={() => setShowThemeWheel(!showThemeWheel)}
+        >
+          <Palette className="palette-icon" />
+          <span>Themes</span>
+        </button>
+
+        <div className="user-controls">
+          <div className="user-info">
+            <User className="user-icon" />
+            <span className="username-text">{user?.username}</span>
+          </div>
+          
+          <button onClick={onLogout} className="logout-button">
+            <LogOut className="logout-icon" />
+            <span className="logout-text">Logout</span>
+          </button>
+        </div>
+      </div>
 
       {showThemeWheel && (
         <div className="theme-wheel-overlay" onClick={() => setShowThemeWheel(false)}>
@@ -172,10 +187,19 @@ const NewSession = ({ onStartSession, currentTheme = 'energy', onThemeChange }) 
           50% { background-position: 100% 50%; }
         }
 
-        .theme-toggle {
+        .new-session-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 2rem;
           position: absolute;
-          top: 2rem;
-          right: 2rem;
+          top: 0;
+          left: 0;
+          right: 0;
+          z-index: 10;
+        }
+
+        .theme-toggle {
           display: flex;
           align-items: center;
           gap: 8px;
@@ -189,7 +213,6 @@ const NewSession = ({ onStartSession, currentTheme = 'energy', onThemeChange }) 
           font-weight: 600;
           cursor: pointer;
           transition: all 0.3s ease;
-          z-index: 10;
         }
 
         .theme-toggle:hover {
@@ -201,6 +224,65 @@ const NewSession = ({ onStartSession, currentTheme = 'energy', onThemeChange }) 
         .palette-icon {
           width: 18px;
           height: 18px;
+        }
+
+        .user-controls {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+
+        .user-info {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 12px 16px;
+          background: rgba(255, 255, 255, 0.15);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 12px;
+          color: white;
+          font-weight: 600;
+        }
+
+        .user-icon {
+          width: 18px;
+          height: 18px;
+        }
+
+        .username-text {
+          color: white;
+        }
+
+        .logout-button {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 12px 16px;
+          background: rgba(255, 59, 48, 0.15);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 59, 48, 0.3);
+          border-radius: 12px;
+          color: rgba(255, 255, 255, 0.9);
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+
+        .logout-button:hover {
+          background: rgba(255, 59, 48, 0.25);
+          border-color: rgba(255, 59, 48, 0.5);
+          transform: translateY(-1px);
+        }
+
+        .logout-icon {
+          width: 18px;
+          height: 18px;
+        }
+
+        .logout-text {
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 0.9rem;
         }
 
         .theme-wheel-overlay {
@@ -529,11 +611,22 @@ const NewSession = ({ onStartSession, currentTheme = 'energy', onThemeChange }) 
             padding: 1rem;
           }
 
-          .theme-toggle {
-            top: 1rem;
-            right: 1rem;
+          .new-session-header {
+            padding: 1rem;
+          }
+
+          .user-controls {
+            gap: 0.5rem;
+          }
+
+          .username-text,
+          .logout-text {
+            display: none;
+          }
+          
+          .user-info,
+          .logout-button {
             padding: 10px 12px;
-            font-size: 0.8rem;
           }
 
           .palette-icon {
@@ -636,6 +729,18 @@ const NewSession = ({ onStartSession, currentTheme = 'energy', onThemeChange }) 
           .energy-icon {
             width: 40px;
             height: 40px;
+          }
+
+          .user-controls {
+            flex-direction: column;
+            gap: 0.5rem;
+            align-items: flex-end;
+          }
+          
+          .username-text,
+          .logout-text {
+            display: inline;
+            font-size: 0.8rem;
           }
         }
       `}</style>
