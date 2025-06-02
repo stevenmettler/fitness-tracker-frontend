@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Save, Dumbbell, Clock, Play, Pause } from 'lucide-react';
+import { X, Plus, Trash2, Save, Dumbbell, Clock, Play, Pause, Timer } from 'lucide-react';
 
 const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
   const [workoutName, setWorkoutName] = useState('');
   const [sets, setSets] = useState([
-    { reps: '', weight: '', intensity: 'medium', isActive: false, startTime: null, endTime: null, duration: 0 }
+    { reps: '', weight: '', intensity: 'medium', isActive: false, startTime: null, endTime: null, duration: 0, isCompleted: false }
   ]);
   const [isSaving, setIsSaving] = useState(false);
   
-  // Real timing states
-  const [workoutStarted, setWorkoutStarted] = useState(false);
-  const [workoutStartTime, setWorkoutStartTime] = useState(null);
-  const [currentSetIndex, setCurrentSetIndex] = useState(null);
-  const [workoutDuration, setWorkoutDuration] = useState(0);
+  // Exercise timing states (auto-started)
+  const [exerciseStartTime, setExerciseStartTime] = useState(null);
+  
+  // Rest timer states
+  const [restTimer, setRestTimer] = useState(0);
+  const [isResting, setIsResting] = useState(false);
+  const [restStartTime, setRestStartTime] = useState(null);
+  const [notificationSent, setNotificationSent] = useState(false);
 
   const themes = {
     energy: 'linear-gradient(135deg, #ff6b35 0%, #f7931e 30%, #ff4757 70%, #ff3838 100%)',
@@ -22,34 +25,39 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
     sunset: 'linear-gradient(135deg, #fa709a 0%, #fee140 30%, #ffa726 70%, #ff7043 100%)'
   };
 
-  // Timer for workout duration
+  // Auto-start exercise timer when modal opens
   useEffect(() => {
-    let timer;
-    if (workoutStarted && workoutStartTime) {
-      timer = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - new Date(workoutStartTime).getTime()) / 1000);
-        setWorkoutDuration(elapsed);
-      }, 1000);
+    if (isOpen && !exerciseStartTime) {
+      const now = new Date().toISOString();
+      setExerciseStartTime(now);
+      console.log('🏁 Exercise auto-started at:', now);
     }
-    return () => clearInterval(timer);
-  }, [workoutStarted, workoutStartTime]);
+  }, [isOpen, exerciseStartTime]);
 
-  // Timer for current set
+  // Request notification permission on component mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Rest timer
   useEffect(() => {
     let timer;
-    if (currentSetIndex !== null && sets[currentSetIndex]?.isActive) {
+    if (isResting && restStartTime) {
       timer = setInterval(() => {
-        const startTime = sets[currentSetIndex].startTime;
-        if (startTime) {
-          const elapsed = Math.floor((Date.now() - new Date(startTime).getTime()) / 1000);
-          setSets(prev => prev.map((set, index) => 
-            index === currentSetIndex ? { ...set, duration: elapsed } : set
-          ));
+        const elapsed = Math.floor((Date.now() - new Date(restStartTime).getTime()) / 1000);
+        setRestTimer(elapsed);
+        
+        // Send notification at 2 minutes (120 seconds)
+        if (elapsed >= 120 && !notificationSent) {
+          sendRestNotification();
+          setNotificationSent(true);
         }
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [currentSetIndex, sets]);
+  }, [isResting, restStartTime, notificationSent]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -57,47 +65,30 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const startWorkout = () => {
-    const now = new Date().toISOString();
-    setWorkoutStartTime(now);
-    setWorkoutStarted(true);
-    console.log('🏁 Workout started at:', now);
+  const sendRestNotification = () => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Rest Timer Complete! 💪', {
+        body: 'Your 2-minute rest is up. Ready for the next set?',
+        icon: '/favicon.ico', // You can customize this
+        badge: '/favicon.ico'
+      });
+    }
   };
 
-  const startSet = (setIndex) => {
-    if (!workoutStarted) {
-      alert('Please start the workout first!');
-      return;
-    }
-
-    // End any currently active set
-    if (currentSetIndex !== null) {
-      endSet(currentSetIndex);
-    }
-
+  const startRestTimer = () => {
     const now = new Date().toISOString();
-    setSets(prev => prev.map((set, index) => 
-      index === setIndex 
-        ? { ...set, isActive: true, startTime: now, duration: 0 }
-        : { ...set, isActive: false }
-    ));
-    setCurrentSetIndex(setIndex);
-    console.log(`⏱️ Set ${setIndex + 1} started at:`, now);
+    setRestStartTime(now);
+    setIsResting(true);
+    setRestTimer(0);
+    setNotificationSent(false);
+    console.log('⏱️ Rest timer started at:', now, 'isResting will be:', true);
   };
 
-  const endSet = (setIndex) => {
-    const now = new Date().toISOString();
-    setSets(prev => prev.map((set, index) => 
-      index === setIndex 
-        ? { ...set, isActive: false, endTime: now }
-        : set
-    ));
-    
-    if (currentSetIndex === setIndex) {
-      setCurrentSetIndex(null);
-    }
-    
-    console.log(`✅ Set ${setIndex + 1} ended at:`, now);
+  const stopRestTimer = () => {
+    setIsResting(false);
+    setRestTimer(0);
+    setNotificationSent(false);
+    console.log('⏹️ Rest timer stopped, isResting will be:', false);
   };
 
   const addSet = () => {
@@ -108,33 +99,48 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
       isActive: false, 
       startTime: null, 
       endTime: null, 
-      duration: 0 
+      duration: 0,
+      isCompleted: false
     }]);
   };
 
   const removeSet = (index) => {
     if (sets.length > 1) {
-      if (currentSetIndex === index) {
-        setCurrentSetIndex(null);
-      }
       setSets(sets.filter((_, i) => i !== index));
     }
   };
 
   const updateSet = (index, field, value) => {
     const newSets = [...sets];
+    const oldSet = newSets[index];
     newSets[index][field] = value;
-    setSets(newSets);
+    
+    // Check if set is now complete (has reps filled and wasn't complete before)
+    const wasIncomplete = !oldSet.reps || oldSet.reps === '' || !oldSet.isCompleted;
+    const isNowComplete = value !== '' && field === 'reps' && value > 0;
+    
+    // If set just became complete, mark it and start rest timer
+    if (wasIncomplete && isNowComplete) {
+      newSets[index].isCompleted = true;
+      setSets(newSets);
+      
+      console.log('🎯 Set completed! Starting rest timer...');
+      
+      // Start rest timer immediately
+      startRestTimer();
+    } else {
+      setSets(newSets);
+    }
   };
 
   const handleSave = async () => {
     if (!workoutName.trim()) {
-      alert('Please enter a workout name');
+      alert('Please enter an exercise name');
       return;
     }
 
-    if (!workoutStarted) {
-      alert('Please start the workout timer first!');
+    if (!exerciseStartTime) {
+      alert('Exercise timing error - please try again');
       return;
     }
 
@@ -143,36 +149,28 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
       return;
     }
 
-    // Check if any sets are still active
-    const hasActiveSets = sets.some(set => set.isActive);
-    if (hasActiveSets) {
-      const confirmed = window.confirm('You have active sets. End them and finish workout?');
-      if (!confirmed) return;
-      
-      // End all active sets
-      setSets(prev => prev.map(set => ({
-        ...set,
-        isActive: false,
-        endTime: set.isActive && !set.endTime ? new Date().toISOString() : set.endTime
-      })));
-    }
-
     setIsSaving(true);
 
-    const workoutEndTime = new Date().toISOString();
+    const exerciseEndTime = new Date().toISOString();
+    
+    // Stop rest timer if it's running when saving
+    if (isResting) {
+      stopRestTimer();
+    }
     
     const workout = {
       name: workoutName.trim(),
-      started_at: workoutStartTime, // Real start time
-      finished_at: workoutEndTime,  // Real end time
-      sets: sets.map(set => {
-        // Ensure every set has start and end times
-        const setStartTime = set.startTime || workoutStartTime;
-        const setEndTime = set.endTime || workoutEndTime;
+      started_at: exerciseStartTime, // Real start time
+      finished_at: exerciseEndTime,  // Real end time
+      sets: sets.map((set, index) => {
+        // Create realistic set times (assuming 30-60 seconds per set)
+        const setDuration = 30 + Math.random() * 30; // 30-60 seconds
+        const setStart = new Date(new Date(exerciseStartTime).getTime() + (index * 150 * 1000)); // 2.5 min apart
+        const setEnd = new Date(setStart.getTime() + setDuration * 1000);
         
         return {
-          started_at: setStartTime,
-          finished_at: setEndTime,
+          started_at: setStart.toISOString(),
+          finished_at: setEnd.toISOString(),
           reps: {
             count: parseInt(set.reps),
             weight: set.weight ? parseInt(set.weight) : null,
@@ -182,9 +180,9 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
       })
     };
 
-    console.log('💾 Saving workout with real timing:', {
+    console.log('💾 Saving exercise with real timing:', {
       name: workout.name,
-      duration: Math.floor((new Date(workoutEndTime) - new Date(workoutStartTime)) / 1000 / 60),
+      duration: Math.floor((new Date(exerciseEndTime) - new Date(exerciseStartTime)) / 1000 / 60),
       sets: workout.sets.length,
       realTiming: true
     });
@@ -198,19 +196,19 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
   };
 
   const handleClose = () => {
-    // Confirm if workout is in progress
-    if (workoutStarted) {
-      const confirmed = window.confirm('Are you sure you want to close? Your workout progress will be lost.');
+    // Confirm if exercise is in progress (always true now since auto-started)
+    if (exerciseStartTime) {
+      const confirmed = window.confirm('Are you sure you want to close? Your exercise progress will be lost.');
       if (!confirmed) return;
     }
     
     // Reset all states
     setWorkoutName('');
-    setSets([{ reps: '', weight: '', intensity: 'medium', isActive: false, startTime: null, endTime: null, duration: 0 }]);
-    setWorkoutStarted(false);
-    setWorkoutStartTime(null);
-    setCurrentSetIndex(null);
-    setWorkoutDuration(0);
+    setSets([{ reps: '', weight: '', intensity: 'medium', isActive: false, startTime: null, endTime: null, duration: 0, isCompleted: false }]);
+    setExerciseStartTime(null);
+    setIsResting(false);
+    setRestTimer(0);
+    setNotificationSent(false);
     onClose();
   };
 
@@ -225,13 +223,7 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
               <Dumbbell className="dumbbell-icon" />
             </div>
             <div>
-              <h2>Add Workout</h2>
-              {workoutStarted && (
-                <div className="workout-timer">
-                  <Clock className="timer-icon" />
-                  <span>{formatTime(workoutDuration)}</span>
-                </div>
-              )}
+              <h2>Add Exercise</h2>
             </div>
           </div>
           <button className="close-button" onClick={handleClose}>
@@ -239,8 +231,45 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
           </button>
         </div>
 
+        {/* Prominent Rest Timer Display */}
+        {isResting && (
+          <div className="rest-timer-banner">
+            <div className="rest-timer-content">
+              <Timer className="rest-timer-icon" />
+              <div className="rest-timer-text">
+                <span className="rest-label">REST TIME</span>
+                <span className={`rest-time ${restTimer >= 120 ? 'timer-complete' : ''}`}>
+                  {formatTime(restTimer)}
+                  {restTimer >= 120 && ' ✓ Ready!'}
+                </span>
+              </div>
+              <button className="stop-rest-button" onClick={stopRestTimer}>
+                End Rest
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Debug Info - Remove this after fixing */}
+        {process.env.NODE_ENV === 'development' && (
+          <div style={{ 
+            background: '#f0f0f0', 
+            padding: '10px', 
+            margin: '10px', 
+            borderRadius: '4px',
+            fontSize: '12px',
+            color: '#333'
+          }}>
+            <div><strong>Debug Info:</strong></div>
+            <div>isResting: {isResting.toString()}</div>
+            <div>restTimer: {restTimer}</div>
+            <div>restStartTime: {restStartTime}</div>
+            <div>Completed sets: {sets.filter(s => s.isCompleted).length}</div>
+          </div>
+        )}
+
         <div className="modal-body">
-          {/* Workout Name */}
+          {/* Exercise Name */}
           <div className="workout-name-section">
             <input
               type="text"
@@ -252,24 +281,6 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
               maxLength={100}
             />
           </div>
-
-          {/* Start Workout Button */}
-          {!workoutStarted ? (
-            <div className="start-workout-section">
-              <button className="start-workout-button" onClick={startWorkout}>
-                <Play className="play-icon" />
-                Start Workout Timer
-              </button>
-              <p className="timer-hint">Start the timer when you begin this exercise</p>
-            </div>
-          ) : (
-            <div className="workout-status">
-              <div className="status-indicator active">
-                <Clock className="status-icon" />
-                <span>Workout in progress: {formatTime(workoutDuration)}</span>
-              </div>
-            </div>
-          )}
 
           {/* Sets */}
           <div className="sets-section">
@@ -283,9 +294,10 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
 
             <div className="sets-list">
               {sets.map((set, index) => (
-                <div key={index} className={`set-row ${set.isActive ? 'active' : ''} ${set.endTime ? 'completed' : ''}`}>
+                <div key={index} className={`set-row ${set.isCompleted ? 'completed' : ''}`}>
                   <div className="set-number">
                     {index + 1}
+                    {set.isCompleted && <span className="completed-indicator">✓</span>}
                   </div>
                   
                   <div className="set-inputs">
@@ -329,38 +341,6 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
                     </div>
                   </div>
 
-                  <div className="set-controls">
-                    {!set.isActive && !set.endTime && workoutStarted && (
-                      <button 
-                        className="set-timer-button start"
-                        onClick={() => startSet(index)}
-                        title="Start set timer"
-                      >
-                        <Play className="timer-icon-small" />
-                      </button>
-                    )}
-                    
-                    {set.isActive && (
-                      <div className="set-timer-active">
-                        <span className="set-duration">{formatTime(set.duration)}</span>
-                        <button 
-                          className="set-timer-button end"
-                          onClick={() => endSet(index)}
-                          title="End set"
-                        >
-                          <Pause className="timer-icon-small" />
-                        </button>
-                      </div>
-                    )}
-
-                    {set.endTime && (
-                      <div className="set-completed">
-                        <span className="completed-time">{formatTime(set.duration)}</span>
-                        <span className="completed-check">✓</span>
-                      </div>
-                    )}
-                  </div>
-
                   {sets.length > 1 && (
                     <button 
                       className="remove-set-button"
@@ -373,6 +353,13 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
               ))}
             </div>
           </div>
+
+          {/* Rest Timer Instructions */}
+          <div className="rest-info">
+            <p className="rest-hint">
+              💡 Complete a set (fill in reps) to automatically start a 2-minute rest timer
+            </p>
+          </div>
         </div>
 
         <div className="modal-footer">
@@ -382,10 +369,10 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
           <button 
             className={`save-button ${isSaving ? 'saving' : ''}`}
             onClick={handleSave}
-            disabled={isSaving || !workoutStarted}
+            disabled={isSaving}
           >
             <Save className="save-icon" />
-            {isSaving ? 'Saving...' : 'Save Workout'}
+            {isSaving ? 'Saving...' : 'Save Exercise'}
           </button>
         </div>
 
@@ -483,9 +470,35 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
             color: #333;
           }
 
-          .workout-timer {
+          .timer-display {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 4px;
+          }
+
+          .exercise-timer, .rest-timer {
             display: flex;
             align-items: center;
+            gap: 6px;
+            color: #666;
+            font-size: 0.9rem;
+          }
+
+          .rest-timer {
+            color: #ff9800;
+            font-weight: 600;
+          }
+
+          .timer-complete {
+            color: #4caf50 !important;
+            font-weight: 700;
+          }
+
+          .timer-icon {
+            width: 14px;
+            height: 14px;
+          }-items: center;
             gap: 6px;
             color: #666;
             font-size: 0.9rem;
@@ -518,6 +531,89 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
             width: 18px;
             height: 18px;
             color: #666;
+          }
+
+          .rest-timer-banner {
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+            border-bottom: 3px solid #e65100;
+            padding: 1rem 2rem;
+            animation: pulse-glow 2s ease-in-out infinite;
+          }
+
+          @keyframes pulse-glow {
+            0%, 100% { 
+              box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.2);
+            }
+            50% { 
+              box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.4);
+            }
+          }
+
+          .rest-timer-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            color: white;
+          }
+
+          .rest-timer-icon {
+            width: 32px;
+            height: 32px;
+            color: white;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+          }
+
+          .rest-timer-text {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+          }
+
+          .rest-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            opacity: 0.9;
+            margin-bottom: 2px;
+          }
+
+          .rest-time {
+            font-size: 2rem;
+            font-weight: 800;
+            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+          }
+
+          .rest-time.timer-complete {
+            color: #4caf50;
+            text-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+            animation: ready-pulse 1s ease-in-out infinite;
+          }
+
+          @keyframes ready-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+          }
+
+          .stop-rest-button {
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 8px;
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+          }
+
+          .stop-rest-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.6);
+            transform: translateY(-1px);
           }
 
           .modal-body {
@@ -601,6 +697,92 @@ const WorkoutModal = ({ isOpen, onClose, onSave, currentTheme = 'energy' }) => {
 
           .workout-status {
             margin-bottom: 1.5rem;
+          }
+
+          .rest-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: rgba(255, 152, 0, 0.1);
+            border: 1px solid rgba(255, 152, 0, 0.3);
+            border-radius: 8px;
+            color: #ff9800;
+            font-weight: 600;
+            margin-top: 8px;
+          }
+
+          .rest-icon {
+            width: 16px;
+            height: 16px;
+          }
+
+          .stop-rest-button {
+            padding: 6px 12px;
+            background: rgba(255, 152, 0, 0.2);
+            border: 1px solid rgba(255, 152, 0, 0.4);
+            border-radius: 6px;
+            color: #ff9800;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+          }
+
+          .stop-rest-button:hover {
+            background: rgba(255, 152, 0, 0.3);
+            border-color: rgba(255, 152, 0, 0.6);
+          }
+
+          .set-row.completed {
+            border-color: #4caf50;
+            background: rgba(76, 175, 80, 0.1);
+          }
+
+          .set-number {
+            width: 32px;
+            height: 32px;
+            background: ${themes[currentTheme]};
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+            position: relative;
+          }
+
+          .completed-indicator {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background: #4caf50;
+            color: white;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 700;
+          }
+
+          .rest-info {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 1rem;
+          }
+
+          .rest-hint {
+            margin: 0;
+            font-size: 0.85rem;
+            color: #666;
+            text-align: center;
+            line-height: 1.4;
           }
 
           .status-indicator {

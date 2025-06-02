@@ -53,40 +53,40 @@ const SessionDashboard = ({ session, user, onAddWorkout, onEndSession, onLogout,
     setShowThemeWheel(false);
   };
 
-  // Handle adding workout - open the modal
-  const handleAddWorkout = () => {
+  // Handle adding exercise - open the modal
+  const handleAddExercise = () => {
     setShowWorkoutModal(true);
   };
 
-  // Handle saving workout from modal with proper timing
-const handleSaveWorkout = (workoutData) => {
+  // Handle saving exercise from modal with proper timing
+const handleSaveExercise = (exerciseData) => {
   // No need to modify timing - WorkoutModal now provides real times
-  console.log('💪 Received workout with real timing:', {
-    name: workoutData.name,
-    started_at: workoutData.started_at,
-    finished_at: workoutData.finished_at,
-    duration: Math.floor((new Date(workoutData.finished_at) - new Date(workoutData.started_at)) / 1000 / 60) + ' minutes',
-    sets: workoutData.sets.length
+  console.log('💪 Received exercise with real timing:', {
+    name: exerciseData.name,
+    started_at: exerciseData.started_at,
+    finished_at: exerciseData.finished_at,
+    duration: Math.floor((new Date(exerciseData.finished_at) - new Date(exerciseData.started_at)) / 1000 / 60) + ' minutes',
+    sets: exerciseData.sets.length
   });
   
-  // Add workout to the current session with real timing data
+  // Add exercise to the current session with real timing data
   const updatedSession = {
     ...currentSession,
-    workouts: [...currentSession.workouts, workoutData]
+    workouts: [...currentSession.workouts, exerciseData]
   };
   
   // Update local session state
   setCurrentSession(updatedSession);
   
-  // Call parent's onAddWorkout function if provided
+  // Call parent's onAddWorkout function if provided (keeping original prop name for backend)
   if (onAddWorkout) {
-    onAddWorkout(workoutData);
+    onAddWorkout(exerciseData);
   }
   
   // Close the modal
   setShowWorkoutModal(false);
   
-  console.log('📊 Session updated. Total workouts:', updatedSession.workouts.length);
+  console.log('📊 Session updated. Total exercises:', updatedSession.workouts.length);
 };
 
   // Generate complete session payload for backend
@@ -97,7 +97,7 @@ const handleSaveWorkout = (workoutData) => {
       user_id: user.id || 1, // You'll need to get this from actual user data
       started_at: currentSession.started_at,
       finished_at: now,
-      notes: currentSession.notes || `Session completed with ${currentSession.workouts.length} workouts`,
+      notes: currentSession.notes || `Session completed with ${currentSession.workouts.length} exercises`,
       workouts: currentSession.workouts.map(workout => ({
         name: workout.name,
         started_at: workout.started_at,
@@ -153,12 +153,12 @@ const handleSaveWorkout = (workoutData) => {
     return `${minutes}m`;
   };
 
-  // Calculate total sets across all workouts
+  // Calculate total sets across all exercises
   const getTotalSets = () => {
     return currentSession.workouts.reduce((total, workout) => total + workout.sets.length, 0);
   };
 
-  // Calculate total reps across all workouts
+  // Calculate total reps across all exercises
   const getTotalReps = () => {
     return currentSession.workouts.reduce((total, workout) =>
       total + workout.sets.reduce((setTotal, set) => setTotal + set.reps.count, 0), 0
@@ -228,11 +228,11 @@ const handleSaveWorkout = (workoutData) => {
         </div>
       )}
 
-      {/* Workout Modal */}
+      {/* Exercise Modal */}
       <WorkoutModal 
         isOpen={showWorkoutModal}
         onClose={() => setShowWorkoutModal(false)}
-        onSave={handleSaveWorkout}
+        onSave={handleSaveExercise}
         currentTheme={currentTheme}
       />
 
@@ -258,7 +258,7 @@ const handleSaveWorkout = (workoutData) => {
             <div className="stat-card">
               <Target className="stat-icon" />
               <div className="stat-content">
-                <span className="stat-label">Workouts</span>
+                <span className="stat-label">Exercises</span>
                 <span className="stat-value">{currentSession.workouts.length}</span>
               </div>
             </div>
@@ -283,9 +283,9 @@ const handleSaveWorkout = (workoutData) => {
 
         {/* Action Buttons */}
         <div className="action-section">
-          <button className="add-workout-button" onClick={handleAddWorkout}>
+          <button className="add-workout-button" onClick={handleAddExercise}>
             <Plus className="plus-icon" />
-            <span>Add Workout to Session</span>
+            <span>Add Exercise to Session</span>
           </button>
           
           <div className="secondary-actions">
@@ -320,10 +320,10 @@ const handleSaveWorkout = (workoutData) => {
           </button>
         </div>
 
-        {/* Workout List (if any) */}
+        {/* Exercise List (if any) */}
         {currentSession.workouts.length > 0 && (
           <div className="workouts-list">
-            <h3 className="workouts-title">Today's Workouts</h3>
+            <h3 className="workouts-title">Today's Exercises</h3>
             {currentSession.workouts.map((workout, index) => (
               <div key={workout.id || index} className="workout-item">
                 <div className="workout-header">
