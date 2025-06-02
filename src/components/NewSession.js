@@ -45,21 +45,21 @@ const NewSession = ({ onStartSession, currentTheme = 'energy', onThemeChange, on
 
   const currentThemeData = themes[currentTheme];
 
-  const handleStartSession = () => {
-    setIsStarting(true);
-    
-    const newSession = {
-      started_at: new Date().toISOString(),
-      user_id: null,
-      notes: '',
-      workouts: []
-    };
-    
-    setTimeout(() => {
-      setIsStarting(false);
-      onStartSession(newSession);
-    }, 500);
+const handleStartSession = () => {
+  setIsStarting(true);
+  
+  const newSession = {
+    started_at: new Date().toISOString(),
+    // user_id: null, ← REMOVE THIS LINE
+    notes: '',
+    workouts: []
   };
+  
+  setTimeout(() => {
+    setIsStarting(false);
+    onStartSession(newSession);
+  }, 500);
+};
 
   const handleThemeSelect = (themeKey) => {
     onThemeChange(themeKey);

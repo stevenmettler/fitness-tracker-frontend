@@ -90,32 +90,32 @@ const handleSaveExercise = (exerciseData) => {
 };
 
   // Generate complete session payload for backend
-  const generateSessionPayload = () => {
-    const now = new Date().toISOString();
-    
-    const sessionPayload = {
-      user_id: user.id || 1, // You'll need to get this from actual user data
-      started_at: currentSession.started_at,
-      finished_at: now,
-      notes: currentSession.notes || `Session completed with ${currentSession.workouts.length} exercises`,
-      workouts: currentSession.workouts.map(workout => ({
-        name: workout.name,
-        started_at: workout.started_at,
-        finished_at: workout.finished_at,
-        sets: workout.sets.map(set => ({
-          started_at: set.started_at,
-          finished_at: set.finished_at,
-          reps: {
-            count: set.reps.count,
-            intensity: set.reps.intensity,
-            weight: set.reps.weight
-          }
-        }))
+const generateSessionPayload = () => {
+  const now = new Date().toISOString();
+  
+  const sessionPayload = {
+    // Remove user_id - backend gets this from JWT token now
+    started_at: currentSession.started_at,
+    finished_at: now,
+    notes: currentSession.notes || `Session completed with ${currentSession.workouts.length} exercises`,
+    workouts: currentSession.workouts.map(workout => ({
+      name: workout.name,
+      started_at: workout.started_at,
+      finished_at: workout.finished_at,
+      sets: workout.sets.map(set => ({
+        started_at: set.started_at,
+        finished_at: set.finished_at,
+        reps: {
+          count: set.reps.count,
+          intensity: set.reps.intensity,
+          weight: set.reps.weight
+        }
       }))
-    };
-
-    return sessionPayload;
+    }))
   };
+
+  return sessionPayload;
+};
 
   // Handle ending session with payload generation
   const handleEndSessionWithPayload = () => {

@@ -228,70 +228,64 @@ function App() {
   };
 
   // Handle ending session with payload - SEND TO BACKEND
-  const handleEndSession = async (sessionPayload) => {
-    console.log('🎯 SESSION COMPLETED - Preparing to send to backend...');
-    
-    // Ensure we're using the real database user ID
-    const correctedPayload = {
-      ...sessionPayload,
-      user_id: user.id // Use the REAL database user ID from login
-    };
-    
-    console.log('📋 Final Session Payload with DB User ID:', JSON.stringify(correctedPayload, null, 2));
-    
-    try {
-      // Send session to backend
-      const response = await apiCall('/sessions/', {
-        method: 'POST',
-        body: JSON.stringify(correctedPayload)
-      });
+const handleEndSession = async (sessionPayload) => {
+  console.log('🎯 SESSION COMPLETED - Preparing to send to backend...');
+  
+  console.log('📋 Final Session Payload:', JSON.stringify(sessionPayload, null, 2));
+  
+  try {
+    // Send session to backend - use original payload without user_id
+    const response = await apiCall('/sessions/', {
+      method: 'POST',
+      body: JSON.stringify(sessionPayload) // ← Use sessionPayload directly
+    });
 
-      if (response.ok) {
-        const savedSession = await response.json();
-        console.log('✅ Session saved to backend successfully!', savedSession);
-        
-        // Add to session history for tracking
-        setSessionHistory(prev => [...prev, {
-          ...correctedPayload,
-          completed_at: new Date().toISOString(),
-          backend_id: savedSession.id
-        }]);
-        
-        // Show success message
-        const workoutCount = correctedPayload.workouts.length;
-        const totalSets = correctedPayload.workouts.reduce((total, workout) => 
-          total + workout.sets.length, 0
-        );
-        const totalReps = correctedPayload.workouts.reduce((total, workout) =>
-          total + workout.sets.reduce((setTotal, set) => setTotal + set.reps.count, 0), 0
-        );
-        
-        alert(
-          `🎉 Session Saved Successfully!\n\n` +
-          `👤 User ID: ${user.id}\n` +
-          `📊 Summary:\n` +
-          `• ${workoutCount} workout${workoutCount !== 1 ? 's' : ''}\n` +
-          `• ${totalSets} total sets\n` +
-          `• ${totalReps} total reps\n\n` +
-          `💾 Data saved to backend with correct user ID!`
-        );
-        
-      } else {
-        const error = await response.json();
-        console.error('❌ Failed to save session:', error);
-        alert(`Failed to save session: ${error.detail || 'Unknown error'}`);
-        return; // Don't clear session if save failed
-      }
+    if (response.ok) {
+      const savedSession = await response.json();
+      console.log('✅ Session saved to backend successfully!', savedSession);
       
-    } catch (error) {
-      console.error('❌ Network error saving session:', error);
-      alert('Network error. Session not saved. Please try again.');
+      // Add to session history for tracking
+      setSessionHistory(prev => [...prev, {
+        ...sessionPayload, // ← Use sessionPayload instead of correctedPayload
+        completed_at: new Date().toISOString(),
+        backend_id: savedSession.id
+      }]);
+      
+      // Show success message
+      const workoutCount = sessionPayload.workouts.length;
+      const totalSets = sessionPayload.workouts.reduce((total, workout) => 
+        total + workout.sets.length, 0
+      );
+      const totalReps = sessionPayload.workouts.reduce((total, workout) =>
+        total + workout.sets.reduce((setTotal, set) => setTotal + set.reps.count, 0), 0
+      );
+      
+      alert(
+        `🎉 Session Saved Successfully!\n\n` +
+        `👤 User: ${user.username}\n` + // ← Show username instead of user_id
+        `📊 Summary:\n` +
+        `• ${workoutCount} workout${workoutCount !== 1 ? 's' : ''}\n` +
+        `• ${totalSets} total sets\n` +
+        `• ${totalReps} total reps\n\n` +
+        `💾 Data saved to backend!`
+      );
+      
+    } else {
+      const error = await response.json();
+      console.error('❌ Failed to save session:', error);
+      alert(`Failed to save session: ${error.detail || 'Unknown error'}`);
       return; // Don't clear session if save failed
     }
     
-    // Clear current session only after successful save
-    setCurrentSession(null);
-  };
+  } catch (error) {
+    console.error('❌ Network error saving session:', error);
+    alert('Network error. Session not saved. Please try again.');
+    return; // Don't clear session if save failed
+  }
+  
+  // Clear current session only after successful save
+  setCurrentSession(null);
+};
 
   // Handle theme changes
   const handleThemeChange = (newTheme) => {
