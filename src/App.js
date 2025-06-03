@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import NewSession from './components/NewSession';
 import LoginScreen from './components/LoginScreen';
 import SessionDashboard from './components/SessionDashboard';
+import SessionHistory from './components/SessionHistory'; // Add this import
 
 // API Configuration - Switch between local and production
 const API_BASE = process.env.NODE_ENV === 'development' 
@@ -35,6 +36,9 @@ function App() {
   // User authentication state
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Navigation state - Add this new state
+  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'session', 'history'
   
   // Session state
   const [currentSession, setCurrentSession] = useState(null);
@@ -193,7 +197,22 @@ function App() {
     localStorage.removeItem('token');
     setUser(null);
     setCurrentSession(null);
+    setCurrentView('dashboard'); // Reset view to dashboard
     console.log('👋 User logged out');
+  };
+
+  // Navigation handlers - Add these new functions
+  const handleViewHistory = () => {
+    setCurrentView('history');
+  };
+
+  const handleBackToDashboard = () => {
+    setCurrentView('dashboard');
+  };
+
+  const handleBackFromSession = () => {
+    setCurrentView('dashboard');
+    setCurrentSession(null);
   };
 
   // Handle session start
@@ -205,12 +224,12 @@ function App() {
       ...sessionData,
       workouts: [], // Ensure workouts array exists
       started_at: new Date().toISOString(), // Use actual start time
-      user_id: user?.id, // Use actual user ID from database
       notes: '' // Initialize empty notes
     };
     
     setCurrentSession(newSession);
-    console.log('📊 Session initialized with user_id:', user?.id);
+    setCurrentView('session'); // Switch to session view
+    console.log('📊 Session initialized');
   };
 
   // Handle adding workout to current session
@@ -228,64 +247,65 @@ function App() {
   };
 
   // Handle ending session with payload - SEND TO BACKEND
-const handleEndSession = async (sessionPayload) => {
-  console.log('🎯 SESSION COMPLETED - Preparing to send to backend...');
-  
-  console.log('📋 Final Session Payload:', JSON.stringify(sessionPayload, null, 2));
-  
-  try {
-    // Send session to backend - use original payload without user_id
-    const response = await apiCall('/sessions/', {
-      method: 'POST',
-      body: JSON.stringify(sessionPayload) // ← Use sessionPayload directly
-    });
+  const handleEndSession = async (sessionPayload) => {
+    console.log('🎯 SESSION COMPLETED - Preparing to send to backend...');
+    
+    console.log('📋 Final Session Payload:', JSON.stringify(sessionPayload, null, 2));
+    
+    try {
+      // Send session to backend
+      const response = await apiCall('/sessions/', {
+        method: 'POST',
+        body: JSON.stringify(sessionPayload)
+      });
 
-    if (response.ok) {
-      const savedSession = await response.json();
-      console.log('✅ Session saved to backend successfully!', savedSession);
+      if (response.ok) {
+        const savedSession = await response.json();
+        console.log('✅ Session saved to backend successfully!', savedSession);
+        
+        // Add to session history for tracking
+        setSessionHistory(prev => [...prev, {
+          ...sessionPayload,
+          completed_at: new Date().toISOString(),
+          backend_id: savedSession.id
+        }]);
+        
+        // Show success message
+        const workoutCount = sessionPayload.workouts.length;
+        const totalSets = sessionPayload.workouts.reduce((total, workout) => 
+          total + workout.sets.length, 0
+        );
+        const totalReps = sessionPayload.workouts.reduce((total, workout) =>
+          total + workout.sets.reduce((setTotal, set) => setTotal + set.reps.count, 0), 0
+        );
+        
+        alert(
+          `🎉 Session Saved Successfully!\n\n` +
+          `👤 User: ${user.username}\n` +
+          `📊 Summary:\n` +
+          `• ${workoutCount} workout${workoutCount !== 1 ? 's' : ''}\n` +
+          `• ${totalSets} total sets\n` +
+          `• ${totalReps} total reps\n\n` +
+          `💾 Data saved to backend!`
+        );
+        
+      } else {
+        const error = await response.json();
+        console.error('❌ Failed to save session:', error);
+        alert(`Failed to save session: ${error.detail || 'Unknown error'}`);
+        return; // Don't clear session if save failed
+      }
       
-      // Add to session history for tracking
-      setSessionHistory(prev => [...prev, {
-        ...sessionPayload, // ← Use sessionPayload instead of correctedPayload
-        completed_at: new Date().toISOString(),
-        backend_id: savedSession.id
-      }]);
-      
-      // Show success message
-      const workoutCount = sessionPayload.workouts.length;
-      const totalSets = sessionPayload.workouts.reduce((total, workout) => 
-        total + workout.sets.length, 0
-      );
-      const totalReps = sessionPayload.workouts.reduce((total, workout) =>
-        total + workout.sets.reduce((setTotal, set) => setTotal + set.reps.count, 0), 0
-      );
-      
-      alert(
-        `🎉 Session Saved Successfully!\n\n` +
-        `👤 User: ${user.username}\n` + // ← Show username instead of user_id
-        `📊 Summary:\n` +
-        `• ${workoutCount} workout${workoutCount !== 1 ? 's' : ''}\n` +
-        `• ${totalSets} total sets\n` +
-        `• ${totalReps} total reps\n\n` +
-        `💾 Data saved to backend!`
-      );
-      
-    } else {
-      const error = await response.json();
-      console.error('❌ Failed to save session:', error);
-      alert(`Failed to save session: ${error.detail || 'Unknown error'}`);
+    } catch (error) {
+      console.error('❌ Network error saving session:', error);
+      alert('Network error. Session not saved. Please try again.');
       return; // Don't clear session if save failed
     }
     
-  } catch (error) {
-    console.error('❌ Network error saving session:', error);
-    alert('Network error. Session not saved. Please try again.');
-    return; // Don't clear session if save failed
-  }
-  
-  // Clear current session only after successful save
-  setCurrentSession(null);
-};
+    // Clear current session and return to dashboard
+    setCurrentSession(null);
+    setCurrentView('dashboard');
+  };
 
   // Handle theme changes
   const handleThemeChange = (newTheme) => {
@@ -338,7 +358,7 @@ const handleEndSession = async (sessionPayload) => {
         console.log('🔍 DEBUG INFO');
         console.log('API Base:', API_BASE);
         console.log('Current User:', user);
-        console.log('User ID being used in sessions:', user?.id);
+        console.log('Current View:', currentView);
         console.log('Current Session:', currentSession);
         console.log('Current Theme:', currentTheme);
         console.log('Token:', localStorage.getItem('token') ? 'Present' : 'None');
@@ -357,7 +377,7 @@ const handleEndSession = async (sessionPayload) => {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [user, currentSession, currentTheme, sessionHistory]);
+  }, [user, currentView, currentSession, currentTheme, sessionHistory]);
 
   // Show loading screen while checking authentication
   if (loading) {
@@ -387,6 +407,7 @@ const handleEndSession = async (sessionPayload) => {
     );
   }
 
+  // Render different views based on currentView state
   return (
     <div className="App">
       {!user ? (
@@ -397,16 +418,16 @@ const handleEndSession = async (sessionPayload) => {
           currentTheme={currentTheme}
           onThemeChange={handleThemeChange}
         />
-      ) : !currentSession ? (
-        // Show new session screen if user is logged in but no session started
-        <NewSession 
-          onStartSession={handleStartSession}
+      ) : currentView === 'history' ? (
+        // Show session history page
+        <SessionHistory
+          user={user}
+          onBack={handleBackToDashboard}
+          onLogout={handleLogout}
           currentTheme={currentTheme}
           onThemeChange={handleThemeChange}
-          onLogout={handleLogout}  // Added logout prop
-          user={user}              // Added user prop
         />
-      ) : (
+      ) : currentView === 'session' && currentSession ? (
         // Show session in progress
         <SessionDashboard 
           session={currentSession}
@@ -414,8 +435,19 @@ const handleEndSession = async (sessionPayload) => {
           onAddWorkout={handleAddWorkout}
           onEndSession={handleEndSession}
           onLogout={handleLogout}
+          onBack={handleBackFromSession} // Add back button functionality
           currentTheme={currentTheme}
           onThemeChange={handleThemeChange}
+        />
+      ) : (
+        // Show new session screen (dashboard)
+        <NewSession 
+          onStartSession={handleStartSession}
+          onViewHistory={handleViewHistory} // Add history button functionality
+          currentTheme={currentTheme}
+          onThemeChange={handleThemeChange}
+          onLogout={handleLogout}
+          user={user}
         />
       )}
       
@@ -437,6 +469,7 @@ const handleEndSession = async (sessionPayload) => {
           <div>API: {API_BASE.includes('localhost') ? '🏠 Local' : '☁️ Production'}</div>
           <div>User: {user?.username || 'None'}</div>
           <div>User ID: {user?.id || 'None'}</div>
+          <div>View: {currentView}</div>
           <div>Session: {currentSession ? '✅ Active' : '❌ None'}</div>
           <div>Theme: {currentTheme}</div>
           <div>History: {sessionHistory.length} sessions</div>

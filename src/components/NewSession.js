@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
-import { Plus, Zap, Palette, X, LogOut, User } from 'lucide-react';
+// Update src/components/NewSession.js
 
-const NewSession = ({ onStartSession, currentTheme = 'energy', onThemeChange, onLogout, user }) => {
+import React, { useState } from 'react';
+import { Plus, Zap, Palette, X, LogOut, User, History } from 'lucide-react'; // Add History icon
+
+const NewSession = ({ onStartSession, onViewHistory, currentTheme = 'energy', onThemeChange, onLogout, user }) => {
   const [isStarting, setIsStarting] = useState(false);
   const [showThemeWheel, setShowThemeWheel] = useState(false);
+
+  // ... existing theme configurations and functions ...
 
   const themes = {
     energy: {
@@ -45,21 +49,20 @@ const NewSession = ({ onStartSession, currentTheme = 'energy', onThemeChange, on
 
   const currentThemeData = themes[currentTheme];
 
-const handleStartSession = () => {
-  setIsStarting(true);
-  
-  const newSession = {
-    started_at: new Date().toISOString(),
-    // user_id: null, ← REMOVE THIS LINE
-    notes: '',
-    workouts: []
+  const handleStartSession = () => {
+    setIsStarting(true);
+    
+    const newSession = {
+      started_at: new Date().toISOString(),
+      notes: '',
+      workouts: []
+    };
+    
+    setTimeout(() => {
+      setIsStarting(false);
+      onStartSession(newSession);
+    }, 500);
   };
-  
-  setTimeout(() => {
-    setIsStarting(false);
-    onStartSession(newSession);
-  }, 500);
-};
 
   const handleThemeSelect = (themeKey) => {
     onThemeChange(themeKey);
@@ -91,6 +94,7 @@ const handleStartSession = () => {
         </div>
       </div>
 
+      {/* Theme wheel - same as before */}
       {showThemeWheel && (
         <div className="theme-wheel-overlay" onClick={() => setShowThemeWheel(false)}>
           <div className="theme-wheel" onClick={(e) => e.stopPropagation()}>
@@ -158,10 +162,73 @@ const handleStartSession = () => {
           )}
         </button>
         
+        {/* Add History Button */}
+        <button 
+          className="history-button"
+          onClick={onViewHistory}
+        >
+          <History className="history-icon" />
+          <span>View Session History</span>
+        </button>
+        
         <p className="hint">{currentThemeData.hint}</p>
       </div>
 
       <style jsx>{`
+        /* All your existing styles remain the same, just add these new styles: */
+        
+        .history-button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          width: 100%;
+          max-width: 320px;
+          height: 60px;
+          margin: 1rem auto 2rem;
+          background: rgba(255, 255, 255, 0.15);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          border-radius: 16px;
+          color: rgba(255, 255, 255, 0.9);
+          font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+          font-size: 1rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          position: relative;
+          overflow: hidden;
+        }
+
+        .history-button::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+          transition: left 0.6s;
+        }
+
+        .history-button:hover {
+          transform: translateY(-2px) scale(1.01);
+          background: rgba(255, 255, 255, 0.25);
+          border-color: rgba(255, 255, 255, 0.5);
+          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .history-button:hover::before {
+          left: 100%;
+        }
+
+        .history-icon {
+          width: 22px;
+          height: 22px;
+        }
+
+        /* Update existing styles - keep all your existing CSS and add: */
+        
         .new-session-container {
           min-height: 100vh;
           display: flex;
@@ -515,7 +582,7 @@ const handleStartSession = () => {
           display: flex;
           align-items: center;
           justify-content: center;
-          margin: 0 auto 2rem;
+          margin: 0 auto 1rem;
           box-shadow: 
             0 10px 30px rgba(0, 0, 0, 0.2),
             0 4px 8px rgba(0, 0, 0, 0.1),
@@ -661,10 +728,15 @@ const handleStartSession = () => {
             margin-bottom: 2.5rem;
           }
 
-          .start-button {
+          .start-button, .history-button {
             height: 72px;
             font-size: 1.1rem;
             max-width: 280px;
+          }
+
+          .history-button {
+            height: 56px;
+            font-size: 1rem;
           }
 
           .energy-ring {
@@ -677,7 +749,7 @@ const handleStartSession = () => {
             height: 44px;
           }
 
-          .plus-icon {
+          .plus-icon, .history-icon {
             width: 22px;
             height: 22px;
           }
@@ -692,6 +764,16 @@ const handleStartSession = () => {
 
           .start-button:active:not(:disabled) {
             background: linear-gradient(135deg, #f1f2f6 0%, #e9ecef 100%);
+            transform: scale(0.98);
+          }
+
+          .history-button:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: none;
+          }
+
+          .history-button:active {
+            background: rgba(255, 255, 255, 0.3);
             transform: scale(0.98);
           }
 
@@ -718,6 +800,12 @@ const handleStartSession = () => {
           .start-button {
             height: 68px;
             font-size: 1rem;
+            max-width: 260px;
+          }
+
+          .history-button {
+            height: 52px;
+            font-size: 0.9rem;
             max-width: 260px;
           }
 
