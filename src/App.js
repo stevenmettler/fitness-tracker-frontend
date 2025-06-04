@@ -2,32 +2,15 @@ import React, { useState, useEffect } from 'react';
 import NewSession from './components/NewSession';
 import LoginScreen from './components/LoginScreen';
 import SessionDashboard from './components/SessionDashboard';
-import SessionHistory from './components/SessionHistory'; // Add this import
+import SessionHistory from './components/SessionHistory';
 
 // API Configuration - Switch between local and production
 const API_BASE = process.env.NODE_ENV === 'development' 
   ? 'http://localhost:8000' 
   : 'https://fitness-tracker-backend-production-1780.up.railway.app';
 
-// API Helper Functions
-const apiCall = async (endpoint, options = {}) => {
-  const token = localStorage.getItem('token');
-  const config = {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-    },
-    ...options,
-  };
-
-  try {
-    const response = await fetch(`${API_BASE}${endpoint}`, config);
-    return response;
-  } catch (error) {
-    console.error('API call failed:', error);
-    throw error;
-  }
-};
+// Token refresh management
+let refreshTimeout = null;
 
 function App() {
   // Theme state - shared across all components
@@ -37,7 +20,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // Navigation state - Add this new state
+  // Navigation state
   const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'session', 'history'
   
   // Session state
@@ -46,33 +29,173 @@ function App() {
   // Session history for debugging/tracking
   const [sessionHistory, setSessionHistory] = useState([]);
 
+  // Enhanced API call with automatic token refresh
+  const apiCall = async (endpoint, options = {}) => {
+    const accessToken = localStorage.getItem('token');
+    const refreshToken = localStorage.getItem('refresh_token');
+    
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+      },
+      ...options,
+    };
+
+    try {
+      const response = await fetch(`${API_BASE}${endpoint}`, config);
+      
+      // If unauthorized and we have a refresh token, try to refresh
+      if (response.status === 401 && refreshToken && !endpoint.includes('/refresh')) {
+        console.log('🔄 Access token expired, attempting refresh...');
+        
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          // Retry the original request with new token
+          config.headers.Authorization = `Bearer ${localStorage.getItem('token')}`;
+          return await fetch(`${API_BASE}${endpoint}`, config);
+        } else {
+          // Refresh failed, logout user
+          handleLogout('Session expired. Please log in again.');
+          throw new Error('Authentication failed');
+        }
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('API call failed:', error);
+      throw error;
+    }
+  };
+
+  // Refresh access token using refresh token
+  const refreshAccessToken = async () => {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (!refreshToken) {
+      console.log('❌ No refresh token available');
+      return false;
+    }
+
+    try {
+      console.log('🔄 Refreshing access token...');
+      
+      const response = await fetch(`${API_BASE}/users/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Store new tokens and user data
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token);
+        localStorage.setItem('user_data', JSON.stringify(data.user));
+        
+        // Schedule next refresh
+        scheduleTokenRefresh(data.access_token);
+        
+        console.log('✅ Token refreshed successfully');
+        return true;
+      } else {
+        console.log('❌ Token refresh failed');
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing token:', error);
+      return false;
+    }
+  };
+
+  // Schedule automatic token refresh before expiration
+  const scheduleTokenRefresh = (token) => {
+    if (refreshTimeout) {
+      clearTimeout(refreshTimeout);
+    }
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const expirationTime = payload.exp * 1000; // Convert to milliseconds
+      const currentTime = Date.now();
+      const timeUntilExpiry = expirationTime - currentTime;
+      
+      // Refresh 5 minutes before expiration
+      const refreshTime = Math.max(timeUntilExpiry - (5 * 60 * 1000), 60000); // At least 1 minute
+      
+      console.log(`⏰ Token refresh scheduled in ${Math.round(refreshTime / 1000 / 60)} minutes`);
+      
+      refreshTimeout = setTimeout(async () => {
+        console.log('🔄 Automatic token refresh triggered');
+        const refreshed = await refreshAccessToken();
+        if (!refreshed) {
+          handleLogout('Session expired. Please log in again.');
+        }
+      }, refreshTime);
+      
+    } catch (error) {
+      console.error('❌ Error scheduling token refresh:', error);
+    }
+  };
+
   // Check for existing authentication on app load
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
+    const refreshToken = localStorage.getItem('refresh_token');
+    const userData = localStorage.getItem('user_data'); // Store user data separately
+    
+    if (token && userData) {
       try {
-        // Decode JWT token to get user info
         const payload = JSON.parse(atob(token.split('.')[1]));
         const now = Date.now() / 1000;
+        const user = JSON.parse(userData);
         
         if (payload.exp > now) {
-          setUser({ 
-            username: payload.sub, 
-            id: payload.user_id // Extract user_id from token
+          // Token is still valid
+          setUser({
+            username: user.username,
+            id: user.id
           });
-          console.log('🔄 Restored user from token:', {
-            username: payload.sub,
-            user_id: payload.user_id
+          
+          // Schedule automatic refresh
+          scheduleTokenRefresh(token);
+          
+          console.log('🔄 Restored user from valid token:', {
+            username: user.username,
+            user_id: user.id,
+            expires_in_minutes: Math.round((payload.exp - now) / 60)
+          });
+        } else if (refreshToken) {
+          // Token expired but we have refresh token
+          console.log('⏰ Access token expired, attempting refresh...');
+          refreshAccessToken().then(refreshed => {
+            if (refreshed) {
+              const newUserData = localStorage.getItem('user_data');
+              if (newUserData) {
+                const newUser = JSON.parse(newUserData);
+                setUser({
+                  username: newUser.username,
+                  id: newUser.id
+                });
+              }
+            } else {
+              console.log('❌ Refresh failed, clearing tokens');
+              localStorage.removeItem('token');
+              localStorage.removeItem('refresh_token');
+              localStorage.removeItem('user_data');
+            }
           });
         } else {
-          // Token expired
-          console.log('⏰ Token expired, removing...');
+          // No refresh token, clear expired access token
+          console.log('⏰ Token expired with no refresh token, removing...');
           localStorage.removeItem('token');
+          localStorage.removeItem('user_data');
         }
       } catch (e) {
-        // Invalid token
-        console.log('❌ Invalid token, removing...');
+        console.log('❌ Invalid token or user data, removing...');
         localStorage.removeItem('token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user_data');
       }
     }
     setLoading(false);
@@ -102,25 +225,25 @@ function App() {
 
       if (response.ok) {
         const data = await response.json();
+        
+        // Store tokens and user data separately
         localStorage.setItem('token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token);
+        localStorage.setItem('user_data', JSON.stringify(data.user));
         
-        // Decode token to get user info INCLUDING DATABASE ID
-        const payload = JSON.parse(atob(data.access_token.split('.')[1]));
+        // Schedule automatic refresh
+        scheduleTokenRefresh(data.access_token);
         
-        if (!payload.user_id) {
-          console.error('❌ No user_id in token payload:', payload);
-          return { success: false, error: 'Invalid token - missing user ID' };
-        }
-        
-        setUser({ 
-          username: payload.sub, 
-          id: payload.user_id // This is the REAL database user ID
+        // Set user from API response, not from JWT
+        setUser({
+          username: data.user.username,
+          id: data.user.id
         });
         
         console.log('✅ Login successful:', {
-          username: payload.sub,
-          user_id: payload.user_id,
-          token_expires: new Date(payload.exp * 1000).toLocaleString()
+          username: data.user.username,
+          user_id: data.user.id,
+          token_expires: new Date(JSON.parse(atob(data.access_token.split('.')[1])).exp * 1000).toLocaleString()
         });
         return { success: true };
       } else {
@@ -192,16 +315,33 @@ function App() {
     }
   };
 
-  // Handle user logout
-  const handleLogout = () => {
+  // Handle user logout with optional message
+  const handleLogout = (message) => {
+    // Clear refresh timeout
+    if (refreshTimeout) {
+      clearTimeout(refreshTimeout);
+      refreshTimeout = null;
+    }
+    
+    // Clear all stored data
     localStorage.removeItem('token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user_data');
+    
+    // Reset state
     setUser(null);
     setCurrentSession(null);
-    setCurrentView('dashboard'); // Reset view to dashboard
+    setCurrentView('dashboard');
+    
     console.log('👋 User logged out');
+    
+    // Show message if provided
+    if (message) {
+      alert(message);
+    }
   };
 
-  // Navigation handlers - Add these new functions
+  // Navigation handlers
   const handleViewHistory = () => {
     setCurrentView('history');
   };
@@ -253,7 +393,7 @@ function App() {
     console.log('📋 Final Session Payload:', JSON.stringify(sessionPayload, null, 2));
     
     try {
-      // Send session to backend
+      // Send session to backend using the enhanced apiCall function
       const response = await apiCall('/sessions/', {
         method: 'POST',
         body: JSON.stringify(sessionPayload)
@@ -362,6 +502,8 @@ function App() {
         console.log('Current Session:', currentSession);
         console.log('Current Theme:', currentTheme);
         console.log('Token:', localStorage.getItem('token') ? 'Present' : 'None');
+        console.log('Refresh Token:', localStorage.getItem('refresh_token') ? 'Present' : 'None');
+        console.log('User Data:', localStorage.getItem('user_data') ? JSON.parse(localStorage.getItem('user_data')) : 'None');
         if (localStorage.getItem('token')) {
           try {
             const payload = JSON.parse(atob(localStorage.getItem('token').split('.')[1]));
@@ -378,6 +520,15 @@ function App() {
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [user, currentView, currentSession, currentTheme, sessionHistory]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+      }
+    };
+  }, []);
 
   // Show loading screen while checking authentication
   if (loading) {
@@ -423,7 +574,7 @@ function App() {
         <SessionHistory
           user={user}
           onBack={handleBackToDashboard}
-          onLogout={handleLogout}
+          onLogout={() => handleLogout()}
           currentTheme={currentTheme}
           onThemeChange={handleThemeChange}
         />
@@ -434,8 +585,8 @@ function App() {
           user={user}
           onAddWorkout={handleAddWorkout}
           onEndSession={handleEndSession}
-          onLogout={handleLogout}
-          onBack={handleBackFromSession} // Add back button functionality
+          onLogout={() => handleLogout()}
+          onBack={handleBackFromSession}
           currentTheme={currentTheme}
           onThemeChange={handleThemeChange}
         />
@@ -443,10 +594,10 @@ function App() {
         // Show new session screen (dashboard)
         <NewSession 
           onStartSession={handleStartSession}
-          onViewHistory={handleViewHistory} // Add history button functionality
+          onViewHistory={handleViewHistory}
           currentTheme={currentTheme}
           onThemeChange={handleThemeChange}
-          onLogout={handleLogout}
+          onLogout={() => handleLogout()}
           user={user}
         />
       )}
